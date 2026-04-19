@@ -1,93 +1,17 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>駐車場記録アプリ</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-<style>
-#map { height: 55vh; }
-
-/* スマホでも大きく */
-body { font-family: sans-serif; margin: 0; font-size: 18px; }
-.form { padding: 12px; }
-input, textarea, select, button {
-  width: 100%;
-  margin: 8px 0;
-  padding: 10px;
-  font-size: 18px;
-}
-
-button {
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 8px;
-}
-
-/* ロゴ表示 */
-.logo {
-  height: 20px;
-  vertical-align: middle;
-}
-</style>
-</head>
-
-<body>
-
-<div id="map"></div>
-
-<div class="form">
-<input id="name" placeholder="駐車場名（例：タイムズ〇〇）">
-<input id="address" placeholder="住所">
-<select id="card">
-<option value="OK">法人カードOK</option>
-<option value="NG">法人カードNG</option>
-</select>
-<input id="price" placeholder="金額">
-<textarea id="note" placeholder="注意点"></textarea>
-
-<button onclick="addParking()">登録</button>
-<button onclick="getLocation()">現在地へ</button>
-<button onclick="clearData()">全部削除</button>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
 let map = L.map('map').setView([35.4478, 139.6425], 14);
 let markers = [];
+let selectedLatLng = null;
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap'
 }).addTo(map);
 
-/* アイコン色 */
-function getIcon(card) {
-  if (card === "OK") {
-    return L.icon({
-      iconUrl: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-      iconSize: [32, 32]
-    });
-  }
-  return L.icon({
-    iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-    iconSize: [32, 32]
-  });
-}
-
-/* ロゴ判定 */
-function getLogo(name) {
-  if (name.includes("タイムズ")) {
-    return '<img class="logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Times_logo.svg/320px-Times_logo.svg.png">';
-  }
-  if (name.includes("リパーク")) {
-    return '<img class="logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Repark_logo.png/320px-Repark_logo.png">';
-  }
-  return '';
-}
+/* 地図クリックで位置取得 */
+map.on('click', function(e) {
+  selectedLatLng = e.latlng;
+  alert("地図の場所を選択しました");
+});
 
 /* 登録 */
 function addParking() {
@@ -99,75 +23,28 @@ function addParking() {
     note: document.getElementById("note").value,
   };
 
-  if (!data.name || !data.address) {
-    alert("駐車場名と住所は必須です");
+  if (!data.name || !selectedLatLng) {
+    alert("名前と地図の位置を選択してください");
     return;
   }
 
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(data.address)}`)
-    .then(res => res.json())
-    .then(results => {
-      if (results.length > 0) {
-        data.lat = parseFloat(results[0].lat);
-        data.lng = parseFloat(results[0].lon);
-        saveData(data);
-        addMarker(data);
-      } else {
-        alert("住所変換失敗");
-      }
-    });
+  data.lat = selectedLatLng.lat;
+  data.lng = selectedLatLng.lng;
+
+  saveData(data);
+  addMarker(data);
 }
 
 /* マーカー */
 function addMarker(data) {
-  const marker = L.marker([data.lat, data.lng], {
-    icon: getIcon(data.card)
-  }).addTo(map);
-
-  const logo = getLogo(data.name);
+  const marker = L.marker([data.lat, data.lng]).addTo(map);
 
   marker.bindPopup(`
-    ${logo}<br>
     <b>${data.name}</b><br>
-    ${data.address}<br>
-    カード: ${data.card}<br>
-    金額: ${data.price}<br>
-    ${data.note}
+    ${data.address}
   `);
 
   map.setView([data.lat, data.lng], 16);
   markers.push(marker);
 }
-
-/* 保存 */
-function saveData(data) {
-  const list = JSON.parse(localStorage.getItem("parkings") || "[]");
-  list.push(data);
-  localStorage.setItem("parkings", JSON.stringify(list));
-}
-
-/* 読み込み */
-function loadData() {
-  const list = JSON.parse(localStorage.getItem("parkings") || "[]");
-  list.forEach(addMarker);
-}
-loadData();
-
-/* 現在地 */
-function getLocation() {
-  navigator.geolocation.getCurrentPosition(pos => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    map.setView([lat, lng], 15);
-  });
-}
-
-/* 全削除 */
-function clearData() {
-  localStorage.removeItem("parkings");
-  location.reload();
-}
 </script>
-
-</body>
-</html>
